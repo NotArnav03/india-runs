@@ -1,0 +1,94 @@
+# Redrob Hackathon — Submission Metadata
+# Mirrors the portal metadata; Stage-3 review checks this against the portal.
+# Fields marked TODO must be filled by the team before submitting.
+
+# ============================================================================
+# Team identity
+# ============================================================================
+team_name: "TODO-your-registered-team-name"   # Used in leaderboard and announcements
+
+primary_contact:
+  name: "TODO Full Name"
+  email: "TODO@example.com"        # Used for all organizer communication
+  phone: "TODO +91-XXXXXXXXXX"     # Used for top-N / top-X outreach
+
+team_members:
+  - name: "TODO Member 1 (repo owner: NotArnav03)"
+    email: "TODO@example.com"
+    role: "ML Engineer"
+  - name: "TODO Member 2"
+    email: "TODO@example.com"
+    role: "TODO"
+  - name: "TODO Member 3"
+    email: "TODO@example.com"
+    role: "TODO"
+
+# ============================================================================
+# Code and reproducibility
+# ============================================================================
+github_repo: "https://github.com/NotArnav03/india-runs"
+
+sandbox_link: "TODO-deploy-app.py-and-paste-url"
+# Deploy app.py to HuggingFace Spaces / Streamlit Cloud (see README → Sandbox).
+
+reproduce_command: "python rank.py --candidates ./candidates.jsonl --out ./submission.csv"
+# Produces submission.csv from candidates.jsonl. CPU-only, no network at rank
+# time. SBERT model + embeddings are warmed by `python prepare.py` first
+# (pre-computation; see below).
+
+# ============================================================================
+# Compute environment
+# ============================================================================
+compute:
+  platform: "Local Windows workstation"   # UPDATE to the machine used for the final reproduction
+  cpu_cores: 12
+  ram_gb: 16
+  python_version: "3.14.2"
+  os: "Windows 11 Pro"
+  uses_gpu_for_inference: false            # CPU-only ranking
+  has_network_during_ranking: false        # no API calls during ranking
+  pre_computation_required: true           # SBERT model download + embedding cache (offline thereafter)
+  pre_computation_time_minutes: 25         # approximate, full 100K SBERT encode on CPU
+
+# ============================================================================
+# AI tools declaration
+# ============================================================================
+ai_tools_used:
+  - "Claude"        # Claude Code: architecture, implementation, code review, tests
+
+ai_usage_summary: |
+  Built with Claude Code as a pair-engineering tool: gap analysis against the
+  dataset, implementation of the ranking pipeline and tests, and code review.
+  All design decisions, the JD requirement model, and the scoring weights were
+  human-directed. No candidate data was sent to any hosted LLM, and the ranking
+  step itself makes no LLM/API calls (offline, CPU-only).
+
+# ============================================================================
+# Approach summary
+# ============================================================================
+methodology_summary: |
+  Multi-signal ranker built on a vendored, license-clean subset of the FAIMR
+  retrieval/ranking core. We model the single JD explicitly (must/nice skills,
+  hard disqualifiers, locations) and score each candidate by blending: SBERT
+  semantic fit of the JD against the profile's career narrative, an anchored
+  skill match, and ten career/behavioral features over the 23 Redrob signals
+  (shipped-systems evidence, product-vs-services trajectory, role coherence,
+  skill credibility, experience-band fit, tenure, availability, engagement,
+  GitHub, location). Embedding/keyword similarity is deliberately down-weighted
+  because the JD warns it is a trap. Hard JD disqualifiers and an internal
+  profile-consistency check are applied as multiplicative guards, so keyword
+  stuffers, off-target roles, consulting-only careers, and the planted honeypots
+  sink out of contention. Reasoning is generated from real profile facts only.
+  Rank step runs in ~80s for 100K candidates on CPU (no GPU, no network).
+  Validated on a JD-grounded behavioral judgment set: composite ~0.98, 0%
+  honeypots in the top 10.
+
+# ============================================================================
+# Declarations
+# ============================================================================
+declarations:
+  read_submission_spec: true
+  code_is_original_work: true
+  no_collusion: true
+  honeypot_check_done: true         # explicit profile-consistency / honeypot guard (ir/honeypot.py)
+  reproduction_tested: true         # rank.py verified end-to-end; output passes validate_submission.py

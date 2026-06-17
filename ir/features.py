@@ -203,14 +203,16 @@ class FeatureExtractor:
 
         ids = [c.id for c in candidates]
 
-        # SBERT: one batch encode for the JD + all candidates.
-        to_encode = {f"__jd__": job.text}
+        # SBERT: one batch encode for the JD + all candidates, then a single
+        # vectorized cosine over the whole pool.  A per-candidate Python loop
+        # here (one cosine call each) does not scale — at 100K candidates the
+        # call overhead alone blows the rank-step budget.  cosine_similarity
+        # handles both dense (SBERT) and sparse (hashing) rows in one shot.
+        to_encode = {"__jd__": job.text}
         to_encode.update({c.id: c.text for c in candidates})
         embeddings = self.embedder.encode(to_encode)
         jd_emb = embeddings["__jd__"]
-        sbert_sims = {
-            c.id: self.embedder.cosine(jd_emb, embeddings[c.id]) for c in candidates
-        }
+        sbert_sims = self._batch_cosine(jd_emb, [embeddings[c.id] for c in candidates], ids)
 
         tfidf_sims = self._tfidf_similarities(job, candidates)
 
@@ -240,6 +242,28 @@ class FeatureExtractor:
             rows.append(row)
 
         return self.feature_names, np.asarray(rows, dtype=float), ids
+
+    @staticmethod
+    def _batch_cosine(jd_emb, cand_embs: list, ids: list[str]) -> dict[str, float]:
+        """Vectorized cosine of the JD against every candidate embedding.
+
+        Stacks the candidate vectors once and calls sklearn
+        ``cosine_similarity`` a single time.  Works for dense numpy arrays
+        (SBERT / fake embedder) and sparse rows (hashing embedder).
+        """
+        from sklearn.metrics.pairwise import cosine_similarity
+
+        if not cand_embs:
+            return {}
+        if hasattr(cand_embs[0], "toarray"):  # sparse rows (HashingVectorizer)
+            from scipy.sparse import vstack as sparse_vstack
+            matrix = sparse_vstack(cand_embs)
+            jd = jd_emb if hasattr(jd_emb, "toarray") else np.asarray(jd_emb).reshape(1, -1)
+        else:
+            matrix = np.vstack([np.asarray(e).ravel() for e in cand_embs])
+            jd = np.asarray(jd_emb).reshape(1, -1)
+        sims = cosine_similarity(jd, matrix).ravel()
+        return {cid: float(s) for cid, s in zip(ids, sims)}
 
     def _tfidf_similarities(
         self, job: Job, candidates: list[Candidate],
