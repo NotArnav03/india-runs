@@ -29,3 +29,5 @@ models/
 
 # Large raw data (vendor explicitly, don't commit dumps)
 data/raw/
+# Dataset bundles — fetch from the hackathon portal, never commit
+*.zip
