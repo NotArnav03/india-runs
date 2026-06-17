@@ -1,0 +1,26 @@
+# India Runs — Track 1 (Intelligent Candidate Discovery)
+# Trimmed to what the vendored FAIMR core + the ir/ package actually need.
+
+# Core
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+pyyaml>=6.0.0
+tqdm>=4.66.0
+joblib>=1.3.0
+
+# Semantic embeddings (SBERT)
+sentence-transformers>=2.2.0
+torch>=2.0.0
+transformers>=4.35.0
+
+# Learning-to-Rank
+xgboost>=2.0.0
+lightgbm>=4.1.0
+
+# Ingestion (resumes/profiles)
+pdfplumber>=0.10.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0

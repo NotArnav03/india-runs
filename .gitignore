@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Caches & artefacts
+data/embeddings_cache/
+*.joblib
+models/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Large raw data (vendor explicitly, don't commit dumps)
+data/raw/
