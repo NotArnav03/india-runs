@@ -7,21 +7,21 @@
 # ============================================================================
 team_name: "TODO-your-registered-team-name"   # Used in leaderboard and announcements
 
-primary_contact:
-  name: "TODO Full Name"
-  email: "TODO@example.com"        # Used for all organizer communication
-  phone: "TODO +91-XXXXXXXXXX"     # Used for top-N / top-X outreach
+primary_contact:                   # Team Leader as point of contact
+  name: "Aditya Chimurkar"
+  email: "adityac2525@gmail.com"   # Used for all organizer communication
+  phone: "+91-7385174280"          # Used for top-N / top-X outreach
 
 team_members:
-  - name: "TODO Member 1 (repo owner: NotArnav03)"
-    email: "TODO@example.com"
-    role: "ML Engineer"
-  - name: "TODO Member 2"
-    email: "TODO@example.com"
-    role: "TODO"
-  - name: "TODO Member 3"
-    email: "TODO@example.com"
-    role: "TODO"
+  - name: "Aditya Chimurkar"
+    email: "adityac2525@gmail.com"
+    role: "Team Leader"
+  - name: "Arnav Gupta"
+    email: "arnav.g1010@gmail.com"
+    role: "ML Engineer"            # repo owner: NotArnav03
+  - name: "Ishan Gite"
+    email: "gite.ishan@gmail.com"
+    role: "Data Engineer"
 
 # ============================================================================
 # Code and reproducibility
