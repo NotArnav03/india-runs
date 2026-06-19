@@ -29,7 +29,8 @@ from rank import score_candidates
 
 REF = dt.date(2026, 6, 4)
 
-# Friendly labels for the 10 structured/behavioral signals (all in [0,1]).
+# Friendly labels + plain-language explanations for the 10 structured/behavioral
+# signals (all in [0,1], higher = better).
 SIGNAL_LABELS = {
     "shipped_systems_evidence": "Shipped retrieval / ranking",
     "skill_credibility": "Skill credibility",
@@ -41,6 +42,23 @@ SIGNAL_LABELS = {
     "tenure_stability": "Tenure stability",
     "github_signal": "GitHub activity",
     "location_fit": "Location fit",
+}
+SIGNAL_DESCRIPTIONS = {
+    "shipped_systems_evidence": "Evidence in the career history of actually building/shipping "
+        "retrieval, ranking, search or recommendation systems — the JD's real target.",
+    "skill_credibility": "Depth of JD-relevant skills, weighted by proficiency, endorsements, "
+        "months of use and assessment scores — rewards demonstrated skill, not just a listed keyword.",
+    "role_coherence": "How well the current title/headline fits an AI-engineering role; "
+        "penalizes off-target roles (e.g. Marketing) and CV/speech/robotics titles without NLP/IR.",
+    "product_vs_services": "Share of career spent at product companies vs. IT-services / "
+        "consulting firms — the JD strongly prefers product experience.",
+    "experience_band_fit": "Closeness to the role's 5–9 year target band (a soft preference, not a gate).",
+    "availability_composite": "How reachable they actually are: recent activity, recruiter response "
+        "rate, open-to-work, interview completion, and notice period.",
+    "engagement_market": "Recruiter-side demand: profile saves, views and search appearances in the last 30 days.",
+    "tenure_stability": "Average time per role — low values flag job-hopping the JD warns against.",
+    "github_signal": "GitHub activity as external validation of public work (neutral if no GitHub is linked).",
+    "location_fit": "Fit to Noida/Pune (or willingness to relocate, or at least an India base).",
 }
 
 st.set_page_config(page_title="Redrob Candidate Ranker", layout="wide", page_icon="🎯")
@@ -58,9 +76,10 @@ st.markdown(
                   color:#fff; font-size:1.05rem;}
       .pill {display:inline-block; padding:2px 10px; border-radius:999px;
              font-size:.72rem; font-weight:600; margin:2px 4px 2px 0;}
-      .bar-wrap {background:#e5e7eb; border-radius:6px; height:9px; width:100%; margin:2px 0 8px;}
+      .bar-wrap {background:#e5e7eb; border-radius:6px; height:9px; width:100%; margin:2px 0 3px;}
       .bar-fill {height:9px; border-radius:6px; background:linear-gradient(90deg,#3b82f6,#22c55e);}
-      .siglabel {font-size:.78rem; color:#374151; display:flex; justify-content:space-between;}
+      .siglabel {font-size:.78rem; color:#374151; display:flex; justify-content:space-between; font-weight:600;}
+      .sigdesc {font-size:.72rem; color:#6b7280; margin:0 0 12px; line-height:1.25;}
       .muted {color:#6b7280; font-size:.85rem;}
     </style>
     """,
@@ -124,10 +143,12 @@ def _signal_bars(values: dict[str, float]) -> str:
     html = ""
     for name, val in items:
         label = SIGNAL_LABELS.get(name, name)
+        desc = SIGNAL_DESCRIPTIONS.get(name, "")
         pct = max(0, min(100, int(round(val * 100))))
         html += (
             f"<div class='siglabel'><span>{label}</span><span>{pct}%</span></div>"
             f"<div class='bar-wrap'><div class='bar-fill' style='width:{pct}%'></div></div>"
+            f"<div class='sigdesc'>{desc}</div>"
         )
     return html
 
