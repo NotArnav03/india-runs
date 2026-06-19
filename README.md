@@ -62,6 +62,27 @@ python rank.py --candidates ./candidates.jsonl --out ./submission.csv \
 > capture the career/behavioral reasoning this JD rewards. The multi-signal
 > blend alone is the shipped path.
 
+### Embedders: SBERT (main) vs hashing (fallback)
+
+The semantic-similarity signal can be produced two ways. They are
+interchangeable plugins; the embedder only affects the *quality of the semantic
+signal*, which is then blended with the skill match and the 10 career/behavioral
+features.
+
+| | **`sbert`** — the main model | **`hashing`** — model-free fallback |
+|---|---|---|
+| What | `all-MiniLM-L6-v2` sentence-transformer; 384-dim dense embeddings that capture **meaning** | `HashingVectorizer`; cosine ≈ **word overlap**, no semantic understanding |
+| Strength | Understands a "built the system that ranks what users see" profile as a retrieval/ranking fit even without the buzzwords — beats the JD's keyword trap | Fast and dependency-light, but blind to paraphrase / synonyms |
+| Cost | One-time model download + 100K encode (`prepare.py`, precompute); offline thereafter | No model, no download, tiny memory, instant |
+| Self-eval | composite **0.984** | composite **0.97** |
+| Used for | **The real, scored submission** (`rank.py` default) | Sandbox free tier, CI/tests, quick smoke runs |
+
+**The submitted `submission.csv` is SBERT-based** (`rank.py` defaults to
+`--embedder sbert`). The hosted **sandbox defaults to `hashing`** so it boots on
+memory-limited free tiers without a model download — fine, because the sandbox
+is only a small-sample reproducibility check; switch the sidebar to `sbert` to
+demo the real model where the host has enough RAM for PyTorch.
+
 Validate ranking quality locally (no hidden ground truth needed — scores
 against the JD-grounded behavioral judgment set using the official composite),
 and launch the sandbox demo:

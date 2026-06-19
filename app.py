@@ -76,10 +76,10 @@ st.markdown(
                   color:#fff; font-size:1.05rem;}
       .pill {display:inline-block; padding:2px 10px; border-radius:999px;
              font-size:.72rem; font-weight:600; margin:2px 4px 2px 0;}
-      .bar-wrap {background:#e5e7eb; border-radius:6px; height:9px; width:100%; margin:2px 0 3px;}
-      .bar-fill {height:9px; border-radius:6px; background:linear-gradient(90deg,#3b82f6,#22c55e);}
-      .siglabel {font-size:.78rem; color:#374151; display:flex; justify-content:space-between; font-weight:600;}
-      .sigdesc {font-size:.72rem; color:#6b7280; margin:0 0 12px; line-height:1.25;}
+      .bar-wrap {background:#e5e7eb; border-radius:6px; height:11px; width:100%; margin:3px 0 5px;}
+      .bar-fill {height:11px; border-radius:6px; background:linear-gradient(90deg,#3b82f6,#22c55e);}
+      .siglabel {font-size:1rem; color:#111827; display:flex; justify-content:space-between; font-weight:700;}
+      .sigdesc {font-size:.92rem; color:#374151; margin:0 0 18px; line-height:1.45;}
       .muted {color:#6b7280; font-size:.85rem;}
     </style>
     """,
