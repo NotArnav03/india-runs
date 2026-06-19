@@ -67,21 +67,24 @@ ai_usage_summary: |
 # Approach summary
 # ============================================================================
 methodology_summary: |
-  Multi-signal ranker built on a vendored, license-clean subset of the FAIMR
-  retrieval/ranking core. We model the single JD explicitly (must/nice skills,
-  hard disqualifiers, locations) and score each candidate by blending: SBERT
-  semantic fit of the JD against the profile's career narrative, an anchored
-  skill match, and ten career/behavioral features over the 23 Redrob signals
-  (shipped-systems evidence, product-vs-services trajectory, role coherence,
-  skill credibility, experience-band fit, tenure, availability, engagement,
-  GitHub, location). Embedding/keyword similarity is deliberately down-weighted
-  because the JD warns it is a trap. Hard JD disqualifiers and an internal
-  profile-consistency check are applied as multiplicative guards, so keyword
-  stuffers, off-target roles, consulting-only careers, and the planted honeypots
-  sink out of contention. Reasoning is generated from real profile facts only.
-  Rank step runs in ~80s for 100K candidates on CPU (no GPU, no network).
-  Validated on a JD-grounded behavioral judgment set: composite ~0.98, 0%
-  honeypots in the top 10.
+  The JD states plainly that keyword/embedding matching is a trap, so our ranker
+  leads with career evidence and behavior, not buzzwords. Built on a vendored,
+  license-clean subset of the FAIMR retrieval/ranking core, it models the single
+  JD explicitly (must/nice skills, hard disqualifiers, locations) and scores each
+  candidate by blending normalized signals: SBERT semantic fit against the
+  profile's career narrative, an anchored skill match, and ten career/behavioral
+  features over the 23 Redrob signals — shipped-systems evidence,
+  product-vs-services trajectory, role coherence, skill credibility,
+  experience-band fit, tenure, availability, engagement, GitHub, location. Raw
+  similarity is deliberately down-weighted. Hard JD disqualifiers and a
+  within-profile consistency check are applied as multiplicative guards, so
+  keyword-stuffers, off-target roles, consulting-only careers, and the ~80
+  planted honeypots sink out of contention. Each shortlist row gets a 1–2
+  sentence justification built only from profile facts, with honest concerns
+  surfaced. No labels ship with the data, so the ranker is unsupervised; the rank
+  step runs in ~80s for 100K candidates on CPU with no network. Locally validated
+  against a JD-grounded judgment set (official composite ≈0.98, 0% honeypots in
+  the top 10).
 
 # ============================================================================
 # Declarations

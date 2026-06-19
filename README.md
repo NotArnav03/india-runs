@@ -1,110 +1,202 @@
 # India Runs — Intelligent Candidate Discovery (Track 1)
 
 Hackathon entry for **India Runs by Redrob AI**, Track 1 (The Data & AI
-Challenge): rank candidates against a job description by deep job
-understanding, contextual relevance beyond keywords, and integration of
-profile/career/behavioral signals — returning a fast, accurate, ranked
-shortlist.
+Challenge). Given one job description and a pool of 100,000 candidate profiles,
+we return a **ranked top-100 shortlist** — judging fit by deep job
+understanding, contextual relevance beyond keywords, and the integration of
+profile, career, and behavioral signals.
 
-Built on a vendored, license-clean subset of the FAIMR ranking core, with a
-new schema-independent inference layer on top.
+Built on a vendored, license-clean subset of the **FAIMR** ranking core (SBERT,
+cross-encoder, anchored skill matcher, evaluation metrics), with a new,
+schema-independent inference and reasoning layer on top.
 
-## Layout
+---
 
-```
-india-runs/
-├── config.py              # shared config (vendored from FAIMR)
-├── embeddings/            # SBERT + TF-IDF manager with disk cache (vendored)
-├── evaluation/           # P@K, R@K, NDCG, MRR, MAP, ROC-AUC (vendored)
-├── preprocessing/        # text normalizer + section parser (vendored)
-├── ranking/              # cross-encoder + fairness re-ranker + skill matcher (vendored)
-├── ir/                   # NEW hackathon code
-│   ├── features.py       #   multi-signal feature extraction + structured hook
-│   ├── ranker.py         #   MultiSignalRanker: fit / save / load / rank_candidates
-│   ├── adapters.py       #   JSONL → Candidate + validator-exact CSV exporter
-│   ├── jd_requirements.py #  curated, auditable model of the released JD
-│   ├── features_library.py # 23 behavioral signals + career-pattern features
-│   ├── honeypot.py       #   within-profile consistency / honeypot detector
-│   └── reasoning.py      #   fact-grounded reasoning (Stage-4, no hallucination)
-├── rank.py               # single reproduce command → submission.csv
-├── app.py                # Streamlit sandbox demo (submission spec §10.5)
-├── evaluation/
-│   ├── selfeval.py       #   official composite + honeypot-rate + weight tuner
-│   └── judgment_archetypes.py # JD-grounded gold tiers (behavioral regression)
-├── tests/                # 33 tests, no model download (fake/hashing embedder)
-└── docs/GAP_ANALYSIS.md  # what's done, what's left, mapped to code
-```
+## TL;DR
 
-## Quick start
+- **One adversarial JD, 100K candidates, hidden tiered ground truth.** Scored
+  on `0.50·NDCG@10 + 0.30·NDCG@50 + 0.15·MAP + 0.05·P@10`; output is a
+  validator-exact top-100 CSV.
+- **Multi-signal ranking, not keyword/embedding matching.** Semantic fit is
+  deliberately *down-weighted* — the JD says keyword matching is a trap. Career
+  evidence, demonstrated skill, and behavioral availability carry the weight.
+- **Trap-aware.** Hard JD disqualifiers and an internal profile-consistency
+  check act as multiplicative guards, so keyword-stuffers, off-target roles,
+  consulting-only careers, and the dataset's ~80 planted honeypots sink.
+- **Fits the budget.** Rank step is **~80 s for the full 100K on CPU, offline**,
+  ≤ 0.3 GB heap — well inside the 5-min / 16-GB limit.
+- **Defensible reasoning.** Every shortlist row carries a 1–2 sentence
+  justification built only from facts in the profile (no hallucination), with
+  honest concerns surfaced and tone matched to rank.
+
+Reproduce the submission:
 
 ```bash
 pip install -r requirements.txt
-pytest                       # full suite, no model download required
+python prepare.py --candidates ./candidates.jsonl                       # one-time precompute
+python rank.py    --candidates ./candidates.jsonl --out ./submission.csv  # ≤5 min, CPU, offline
 ```
 
-Pre-compute once (downloads the SBERT model + warms the on-disk embedding
-cache), then produce the submission. After `prepare.py`, the rank step is
-**CPU-only and makes no network calls**, and completes in **~80s for the full
-100K pool** (well inside the 5-min budget):
+---
+
+## How it works (methodology)
+
+The ranker scores every candidate against the JD by blending complementary
+signals, then applies hard guards. All signals are normalized so weights stay
+interpretable; **raw semantic/keyword similarity is intentionally light** so the
+ranker can't be gamed by buzzword-stuffed skill lists (an explicit trap in the
+JD and dataset).
+
+1. **JD requirement model** (`ir/jd_requirements.py`) — the single JD is
+   modeled explicitly and auditably: must-have skills, nice-to-haves, hard
+   disqualifiers, "shipped-systems" evidence phrases, target locations, and
+   notice preference. Every field is traceable to `job_description.docx`.
+
+2. **Semantic fit** — FAIMR's SBERT bi-encoder (`all-MiniLM-L6-v2`) matches the
+   JD against each profile's *career narrative* (summary + role descriptions),
+   so a candidate who "built the system that ranks what users see" reads as a
+   strong fit even without writing "RAG" or "Pinecone".
+
+3. **Anchored skill match** — FAIMR's look-around-anchored matcher (so "java"
+   ≠ "javascript"), down-weighted because presence ≠ proficiency.
+
+4. **Career + behavioral feature library** (`ir/features_library.py`) — 10
+   features over the 23 Redrob signals and career history: shipped-systems
+   evidence, product-vs-services trajectory, role coherence, skill credibility
+   (proficiency × endorsements × usage × assessment scores), experience-band
+   fit, tenure stability, availability composite, recruiter engagement, GitHub
+   activity (with `-1` "no GitHub" sentinel handled), and location fit.
+
+5. **Hard guards** (`ir/honeypot.py`, `ir/features_library.py`) — JD
+   disqualifiers (consulting-only, pure research, CV/speech/robotics without
+   NLP-IR, off-target roles) and a within-profile consistency check (e.g.
+   "expert" skill with 0 months of use; tenure exceeding the role's date span)
+   are applied as **multiplicative penalties**, so a keyword-perfect but
+   disqualified or impossible profile cannot be rescued by similarity.
+
+6. **Fact-grounded reasoning** (`ir/reasoning.py`) — a 1–2 sentence
+   justification composed only from facts in the profile, with valid JD-fit
+   concerns surfaced and tone consistent with the rank. Honeypot detection is
+   never revealed in the output — traps are silently down-ranked.
+
+7. **Validator-exact export** (`ir/adapters.py`) — emits the top-100 CSV under
+   the official rules (unique ranks, non-increasing score, tie-break by
+   `candidate_id`); the official `validate_submission.py` accepts it.
+
+The whole pipeline is the single entrypoint `MultiSignalRanker`
+(`ir/ranker.py`), runnable on arbitrary in-memory input.
+
+---
+
+## Repository layout
+
+```
+india-runs/
+├── rank.py                 # single reproduce command → submission.csv
+├── prepare.py              # one-time precompute: model download + embedding cache
+├── app.py                  # Streamlit sandbox / demo (submission spec §10.5)
+├── submission_metadata.yaml
+├── Dockerfile              # self-contained sandbox image
+├── ir/                     # hackathon inference + reasoning layer
+│   ├── ranker.py           #   MultiSignalRanker: rank_candidates / fit / save / load
+│   ├── features.py         #   feature extraction + pluggable structured-signal hook
+│   ├── features_library.py #   10 career/behavioral features + disqualifier guards
+│   ├── jd_requirements.py  #   curated, auditable model of the released JD
+│   ├── honeypot.py         #   within-profile consistency / honeypot detector
+│   ├── reasoning.py        #   fact-grounded reasoning (no hallucination)
+│   └── adapters.py         #   JSONL → Candidate + validator-exact CSV exporter
+├── evaluation/             # FAIMR metrics + our local self-eval
+│   ├── metrics.py          #   P@K, R@K, NDCG, MRR, MAP, ROC-AUC (vendored)
+│   ├── selfeval.py         #   official composite + honeypot-rate + weight tuner
+│   └── judgment_archetypes.py  # JD-grounded gold tiers (behavioral regression)
+├── embeddings/             # SBERT + TF-IDF manager with disk cache (vendored)
+├── ranking/                # cross-encoder + skill matcher + fairness ref (vendored)
+├── preprocessing/          # text normalizer + section parser (vendored)
+├── config.py               # shared config (vendored)
+├── tests/                  # 34 tests, no model download (fake/hashing embedder)
+└── docs/GAP_ANALYSIS.md    # the dataset-grounded gap analysis + build log
+```
+
+---
+
+## Reproducing the submission
+
+Pre-computation (model download + warming the on-disk embedding cache) is a
+one-time step and may exceed 5 minutes. After it, the **ranking step is
+CPU-only, makes no network calls, and finishes in ~80 s for the full 100K**:
 
 ```bash
-python prepare.py --candidates ./candidates.jsonl     # pre-computation (may exceed 5 min)
+python prepare.py --candidates ./candidates.jsonl                        # precompute (one-time)
 python rank.py    --candidates ./candidates.jsonl --out ./submission.csv   # the scored rank step
+python validate_submission.py submission.csv                             # → "Submission is valid."
 
-# fully offline / no model download at all (small-sample sandbox or CI):
-python rank.py --candidates ./candidates.jsonl --out ./submission.csv \
-    --embedder hashing --limit 2000
+# fully offline, no model download at all (small-sample sandbox / CI):
+python rank.py --candidates ./candidates.jsonl --out ./submission.csv --embedder hashing --limit 2000
 ```
 
-> The FAIMR cross-encoder pass (`--cross-encoder`) is wired and verified to
-> run, but it is **off by default**: on our JD-grounded judgment set it *lowers*
-> the composite (0.98 → 0.94), because a generic relevance cross-encoder doesn't
-> capture the career/behavioral reasoning this JD rewards. The multi-signal
-> blend alone is the shipped path.
+> An optional FAIMR cross-encoder pass (`--cross-encoder`) is wired and verified
+> to run, but **off by default**: on our judgment set it *lowers* the composite
+> (0.98 → 0.94), because a generic relevance cross-encoder doesn't capture the
+> career/behavioral reasoning this JD rewards.
 
 ### Embedders: SBERT (main) vs hashing (fallback)
 
-The semantic-similarity signal can be produced two ways. They are
-interchangeable plugins; the embedder only affects the *quality of the semantic
-signal*, which is then blended with the skill match and the 10 career/behavioral
-features.
+The semantic signal is a swappable plugin; it only affects the *quality of the
+semantic component*, which is blended with the skill match and the 10
+career/behavioral features.
 
-| | **`sbert`** — the main model | **`hashing`** — model-free fallback |
+| | **`sbert`** — main model | **`hashing`** — model-free fallback |
 |---|---|---|
-| What | `all-MiniLM-L6-v2` sentence-transformer; 384-dim dense embeddings that capture **meaning** | `HashingVectorizer`; cosine ≈ **word overlap**, no semantic understanding |
-| Strength | Understands a "built the system that ranks what users see" profile as a retrieval/ranking fit even without the buzzwords — beats the JD's keyword trap | Fast and dependency-light, but blind to paraphrase / synonyms |
-| Cost | One-time model download + 100K encode (`prepare.py`, precompute); offline thereafter | No model, no download, tiny memory, instant |
+| What | `all-MiniLM-L6-v2`; 384-dim dense embeddings that capture **meaning** | `HashingVectorizer`; cosine ≈ **word overlap** |
+| Strength | Reads paraphrased fits even without buzzwords — beats the keyword trap | Instant, dependency-light; blind to synonyms |
+| Cost | One-time download + 100K encode (precompute), offline after | None |
 | Self-eval | composite **0.984** | composite **0.97** |
-| Used for | **The real, scored submission** (`rank.py` default) | Sandbox free tier, CI/tests, quick smoke runs |
+| Used for | **the scored submission** (`rank.py` default) | sandbox free tier, CI/tests |
 
-**The submitted `submission.csv` is SBERT-based** (`rank.py` defaults to
-`--embedder sbert`). The hosted **sandbox defaults to `hashing`** so it boots on
-memory-limited free tiers without a model download — fine, because the sandbox
-is only a small-sample reproducibility check; switch the sidebar to `sbert` to
-demo the real model where the host has enough RAM for PyTorch.
+The submitted `submission.csv` is **SBERT-based**. The hosted **sandbox defaults
+to `hashing`** so it boots on memory-limited free tiers; flip the sidebar to
+`sbert` to demo the real model where there's enough RAM for PyTorch.
 
-Validate ranking quality locally (no hidden ground truth needed — scores
-against the JD-grounded behavioral judgment set using the official composite),
-and launch the sandbox demo:
+---
+
+## Validation & results
+
+The competition ground truth is hidden, so the true score is only known after
+the deadline. Locally we validate **behavior** against a JD-grounded judgment
+set (`evaluation/judgment_archetypes.py`) — archetypes labeled from the JD's own
+examples (ideal fit, keyword-stuffer, plain-language fit, inactive,
+consulting-only, pure-research, honeypot) — using the **official composite**:
 
 ```bash
-python -m evaluation.selfeval     # SBERT composite ≈ 0.98, honeypot rate 0% in top 10
-streamlit run app.py              # local sandbox UI
+python -m evaluation.selfeval     # SBERT: composite ≈ 0.984, NDCG@10 0.984, honeypot rate 0% in top 10
 ```
+
+On the real `candidates.jsonl`, the produced `submission.csv`:
+- passes the official `validate_submission.py`;
+- has **0 honeypot-suspect and 0 hard-disqualified profiles in the top 100**
+  (the Stage-3 honeypot DQ threshold is >10%);
+- ranks coherent retrieval/ranking/recsys engineers at the top with honest
+  concerns (notice period, relocation, sub-band experience) surfaced lower down.
+
+The full suite (`pytest`, **34 tests**) runs without any model download.
+
+---
 
 ## Sandbox / deployment
 
-The submission requires a hosted sandbox link. `app.py` is a self-contained
-Streamlit demo. Deploy it any of these ways:
+`app.py` is a self-contained Streamlit demo (light "talent-intelligence"
+dashboard: ranked cards with a fit-score gauge, behavioral badges, and an
+expandable per-signal breakdown). Deploy options:
 
-- **Streamlit Community Cloud** — point it at this repo, main file `app.py`.
-- **HuggingFace Spaces** — new Space (Streamlit SDK), push `app.py` +
-  `requirements.txt`.
-- **Docker** (the spec's self-contained option):
-  ```bash
-  docker build -t redrob-ranker .
-  docker run -p 8501:8501 redrob-ranker
-  ```
+- **Streamlit Community Cloud** — point at this repo, main file `app.py`.
+- **HuggingFace Spaces** — new Streamlit Space; push `app.py` + `requirements.txt`.
+- **Docker** — `docker build -t redrob-ranker . && docker run -p 8501:8501 redrob-ranker`.
+
+---
+
+## Library usage
+
+`MultiSignalRanker` is schema-independent and works on arbitrary input:
 
 ```python
 from ir import Job, Candidate, FeatureExtractor, MultiSignalRanker
@@ -118,21 +210,15 @@ for r in ranker.rank_candidates(job, candidates, top_k=10):
     print(r.rank, r.id, round(r.score, 4), r.signals)
 ```
 
-The ranker works **unsupervised** (weighted blend of normalized signals) out
-of the box, and switches to a **learned XGBoost ranker** once labeled data is
-available via `ranker.fit(examples)` + `ranker.save(...)` / `.load(...)`.
+It ranks **unsupervised** (a weighted blend of normalized signals) out of the
+box — the mode we ship, since no training labels accompany the dataset — and
+can switch to a learned XGBoost ranker via `fit` / `save` / `load` when labels
+exist.
 
-## Status
+---
 
-This repo currently delivers the keystone inference entrypoint. The Redrob
-dataset has now dropped, which reshaped the plan: the task is a single
-adversarial JD over a 100K pool with a hidden tiered ground truth (no labels),
-scored on NDCG@10/50 + MAP + P@10, output as a top-100 CSV produced offline in
-≤5 min CPU. Remaining work — the JSONL adapter + validator-exact exporter, a
-curated JD-requirement model, the structured/behavioral feature library, a
-honeypot/consistency detector, and a fact-grounded reasoning generator — is
-tracked in `docs/GAP_ANALYSIS.md`. (The learned-ranker path is off the critical
-path since no training labels ship, and FAISS isn't needed for a single JD.)
+## Provenance & license
 
-Provenance: vendored core derives from FAIMR (MIT). The GFDL-licensed name
-corpora and the fairness-audit subtree are intentionally **not** vendored here.
+The vendored core derives from **FAIMR (MIT)**. The dataset is **not** committed
+(fetch it from the hackathon portal). The GFDL-licensed name corpora and the
+full fairness-audit subtree are intentionally **not** vendored here.
