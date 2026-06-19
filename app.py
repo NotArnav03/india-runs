@@ -118,7 +118,9 @@ st.markdown(
       /* candidate card */
       .card{background:var(--surface); border:1px solid var(--border); border-radius:16px;
             padding:18px 20px; margin-bottom:14px; box-shadow:0 1px 2px rgba(15,23,42,.04);
-            transition:box-shadow .2s ease, border-color .2s ease;}
+            transition:box-shadow .2s ease, border-color .2s ease, transform .2s ease;
+            animation:cardIn .45s cubic-bezier(.2,.8,.2,1) both;}
+      .card:hover{transform:translateY(-2px);}
       .card:hover{border-color:#C7D2FE; box-shadow:0 10px 28px -12px rgba(30,64,175,.30);}
       .card-top{display:flex; align-items:flex-start; gap:14px;}
       .rk{flex:0 0 auto; width:42px; height:42px; border-radius:11px; display:flex; align-items:center;
@@ -141,8 +143,21 @@ st.markdown(
 
       .bar{background:var(--track); border-radius:999px; height:8px; width:100%; overflow:hidden;}
       .bar > span{display:block; height:8px; border-radius:999px;
-                  background:linear-gradient(90deg,#3B82F6,#1E40AF);}
-      .score-box .bar{margin-top:6px;}
+                  background:linear-gradient(90deg,#3B82F6,#1E40AF);
+                  transform-origin:left; animation:barGrow .8s cubic-bezier(.2,.8,.2,1) both;}
+
+      /* radial fit-score gauge */
+      .gauge{width:74px; height:74px; border-radius:50%; margin-left:auto;
+             background:conic-gradient(var(--brand) calc(var(--p)*1%), var(--track) 0);
+             display:flex; align-items:center; justify-content:center;
+             animation:gaugeIn .5s cubic-bezier(.2,.8,.2,1) both;}
+      .gauge.accent{background:conic-gradient(var(--accent) calc(var(--p)*1%), var(--track) 0);}
+      .gauge-inner{width:56px; height:56px; border-radius:50%; background:var(--surface);
+                   display:flex; align-items:center; justify-content:center; font-weight:700;
+                   color:var(--ink); font-size:.98rem; box-shadow:inset 0 0 0 1px var(--border);}
+      .topchip{display:inline-block; margin-left:8px; padding:1px 8px; border-radius:999px;
+               font-size:.64rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+               color:#B45309; background:#FFFBEB; border:1px solid #FDE68A; vertical-align:middle;}
 
       details.sig{margin-top:12px; border-top:1px dashed var(--border); padding-top:10px;}
       details.sig > summary{cursor:pointer; list-style:none; color:var(--brand); font-weight:600;
@@ -176,7 +191,32 @@ st.markdown(
       .stTabs [data-baseweb="tab-list"]{gap:6px;}
       .stTabs [data-baseweb="tab"]{font-weight:600;}
 
-      @media (prefers-reduced-motion: reduce){ .card{transition:none;} .stButton>button{transition:none;} }
+      /* entrance + ambient motion (transform/opacity only) */
+      @keyframes cardIn{from{opacity:0; transform:translateY(12px);} to{opacity:1; transform:none;}}
+      @keyframes tileIn{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;}}
+      @keyframes gaugeIn{from{opacity:0; transform:scale(.85);} to{opacity:1; transform:none;}}
+      @keyframes barGrow{from{transform:scaleX(0);} to{transform:scaleX(1);}}
+      @keyframes heroSheen{0%{transform:translateX(-60%);} 60%,100%{transform:translateX(260%);}}
+      @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.55);}
+                       70%{box-shadow:0 0 0 8px rgba(52,211,153,0);} 100%{box-shadow:0 0 0 0 rgba(52,211,153,0);}}
+      .tile{animation:tileIn .42s ease-out both;}
+      .tile:nth-child(2){animation-delay:.05s;} .tile:nth-child(3){animation-delay:.1s;}
+      .tile:nth-child(4){animation-delay:.15s;}
+      .hero{position:relative; overflow:hidden;}
+      .hero::before{content:''; position:absolute; top:-45%; right:-8%; width:340px; height:340px;
+                    border-radius:50%; background:radial-gradient(circle,rgba(217,119,6,.30),transparent 70%);
+                    pointer-events:none;}
+      .hero::after{content:''; position:absolute; inset:0 auto 0 0; width:38%; pointer-events:none;
+                   background:linear-gradient(100deg,transparent,rgba(255,255,255,.13),transparent);
+                   transform:translateX(-60%); animation:heroSheen 6s ease-in-out 1.2s infinite;}
+      .hero-row, .hero p{position:relative; z-index:1;}
+      .dot{display:inline-block; width:7px; height:7px; border-radius:50%; background:#34D399;
+           margin-right:7px; animation:pulse 2.2s infinite;}
+
+      @media (prefers-reduced-motion: reduce){
+        .card,.tile,.gauge,.bar>span,.hero::after,.dot{animation:none!important;}
+        .card,.stButton>button{transition:none;} .card:hover{transform:none;}
+      }
       @media (max-width:780px){ .tiles{grid-template-columns:repeat(2,1fr);} .brief-grid{grid-template-columns:1fr;} }
     </style>
     """,
@@ -190,7 +230,7 @@ st.markdown(
       <div class="hero-row">
         <div class="hero-mark">{ICON_TARGET}</div>
         <div>
-          <div class="tag">Talent Intelligence · Track 1</div>
+          <div class="tag"><span class="dot"></span>Talent Intelligence · Track 1</div>
           <h1>Redrob — Intelligent Candidate Discovery</h1>
         </div>
       </div>
@@ -315,15 +355,17 @@ def _card(rank_pos: int, cid: str, raw: dict, score: float, score_pct: int,
     yrs = prof.get("years_of_experience", "?")
     loc = html.escape(str(prof.get("location", "—")))
     guard = f"<div class='guard'>A {penalty:.0%} guard penalty was applied (JD-fit / consistency).</div>" if penalty > 0 else ""
+    chip = "<span class='topchip'>Top match</span>" if rank_pos == 1 else ""
+    gauge_cls = "gauge accent" if rank_pos <= 3 else "gauge"
     return (
-        f"<div class='card'><div class='card-top'>"
+        f"<div class='card' style='animation-delay:{(rank_pos - 1) * 0.05:.2f}s'><div class='card-top'>"
         f"<div class='rk {rk_cls}'>{rank_pos}</div>"
-        f"<div class='who'><div class='title'>{title}</div>"
+        f"<div class='who'><div class='title'>{title}{chip}</div>"
         f"<div class='meta'><span class='mono'>{yrs}</span> yrs · {loc} · "
         f"<span class='cid mono'>{html.escape(cid)}</span></div></div>"
         f"<div class='score-box'><div class='lbl'>Fit score</div>"
-        f"<div class='val mono'>{score:.3f}</div>"
-        f"<div class='bar'><span style='width:{score_pct}%'></span></div></div>"
+        f"<div class='{gauge_cls}' style='--p:{score_pct}'>"
+        f"<div class='gauge-inner mono'>{score:.2f}</div></div></div>"
         f"</div>"
         f"<div class='pills'>{_badges(raw)}</div>"
         f"<div class='reason'>{html.escape(reasoning)}</div>"
