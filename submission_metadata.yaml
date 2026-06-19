@@ -28,7 +28,7 @@ team_members:
 # ============================================================================
 github_repo: "https://github.com/NotArnav03/india-runs"
 
-sandbox_link: "TODO-deploy-app.py-and-paste-url"
+sandbox_link: "https://indiarunsaia.streamlit.app"
 # Deploy app.py to HuggingFace Spaces / Streamlit Cloud (see README → Sandbox).
 
 reproduce_command: "python rank.py --candidates ./candidates.jsonl --out ./submission.csv"
