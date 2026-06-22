@@ -1,11 +1,11 @@
-# Light "talent-intelligence SaaS" theme (data-dense dashboard).
+# "Obsidian Ranker" theme — luxury matte dark (deep obsidian + charcoal glass).
 # Applied by Streamlit locally and on Community Cloud / HF Spaces.
 [theme]
-base = "light"
-primaryColor = "#1E40AF"
-backgroundColor = "#F8FAFC"
-secondaryBackgroundColor = "#FFFFFF"
-textColor = "#0F172A"
+base = "dark"
+primaryColor = "#C8CACD"
+backgroundColor = "#121316"
+secondaryBackgroundColor = "#1E2023"
+textColor = "#EDEEF0"
 font = "sans serif"
 
 [client]
