@@ -147,16 +147,25 @@ def build_submission_rows(
     agree: sort by **score descending, then candidate_id ascending** (the
     spec's deterministic tie-break), then assign ranks 1..N.  Returns the
     full ordered list; the caller decides how many to keep.
+
+    Scores are rescaled so the top candidate maps to exactly ``1.0`` (divide
+    by the max): the multiplicative-guard blend can nudge a strong profile
+    slightly above 1, which is valid per the official validator but reads as
+    a normalization bug.  Rescaling is order-preserving (monotonic), so ranks
+    and tie-breaks are unchanged, and keeps every score in ``(0, 1]``.
     """
     rows = list(ranked)
     rows.sort(key=lambda r: (-float(r[1]), r[0]))
+    scale = float(rows[0][1]) if rows else 0.0
+    if scale <= 0:  # degenerate (all non-positive) — leave scores untouched
+        scale = 1.0
     out = []
     for i, (cid, score, reasoning) in enumerate(rows, start=1):
         out.append(
             {
                 "candidate_id": cid,
                 "rank": i,
-                "score": float(score),
+                "score": float(score) / scale,
                 "reasoning": _normalize_reasoning(reasoning),
             }
         )
